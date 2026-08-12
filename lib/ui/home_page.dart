@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/sip_providers.dart';
+import '../services/foreground_service.dart';
+import '../services/phone_permissions.dart';
 import '../sip/sip_user_agent.dart';
 import 'call_page.dart';
 import 'login_page.dart';
@@ -48,6 +50,17 @@ class _HomePageState extends ConsumerState<HomePage> {
     // Push the call page when a new call needs UI.
     ref.listen<AsyncValue<SipCall>>(callEventsProvider, (_, next) {
       next.whenData(_maybeNavigateToCall);
+    });
+
+    // Drive the Android foreground service from the registration lifecycle:
+    // registered -> start the persistent "Connected" service; unregistered /
+    // failed -> tear it down. This is what keeps REGISTER refresh + inbound
+    // INVITEs alive while the app is backgrounded.
+    ref.listen<AsyncValue<RegistrationState>>(registrationStateProvider, (
+      _,
+      next,
+    ) {
+      next.whenData(_onRegistrationChanged);
     });
 
     final sidebar = BuddySidebar(
@@ -128,6 +141,63 @@ class _HomePageState extends ConsumerState<HomePage> {
   // ---------------------------------------------------------------------------
   // Account lifecycle
   // ---------------------------------------------------------------------------
+
+  /// Mirrors the registration state into the Android foreground service.
+  void _onRegistrationChanged(RegistrationState s) {
+    final acc =
+        ref.read(accountProvider) ?? ref.read(sipUserAgentProvider).account;
+    if (acc == null) return;
+    switch (s) {
+      case RegistrationState.registered:
+        ForegroundService.start(
+          extension: acc.username,
+          server: acc.serverUri.toString(),
+        );
+        _maybeRequestPhonePermissions();
+        break;
+      case RegistrationState.unregistered:
+      case RegistrationState.failed:
+        ForegroundService.stop();
+        break;
+      case RegistrationState.registering:
+        break;
+    }
+  }
+
+  /// First-successful-registration hook: request POST_NOTIFICATIONS (Android
+  /// 13+) and, with an explicit rationale dialog, the battery-optimization
+  /// exemption so the foreground service survives Doze / App Standby.
+  Future<void> _maybeRequestPhonePermissions() async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    if (prefs.getBool(phonePermissionsAskedKey) ?? false) return;
+    await prefs.setBool(phonePermissionsAskedKey, true);
+    if (!mounted) return;
+    await ensureNotificationPermission();
+    if (!mounted) return;
+    final optIn = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Keep receiving calls?'),
+        content: const Text(
+          'Disabling battery optimizations lets the phone keep its SIP '
+          'connection alive so you can receive calls while the app is in the '
+          'background.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('No thanks'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Allow'),
+          ),
+        ],
+      ),
+    );
+    if (optIn != true) return;
+    await requestBatteryOptimizationExemption();
+  }
 
   Future<void> _restoreAccount() async {
     final prefs = ref.read(sharedPreferencesProvider);

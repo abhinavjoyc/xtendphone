@@ -7,6 +7,12 @@
     <uses-permission android:name="android.permission.BLUETOOTH"/>
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
+    <!-- Foreground service keeping the SIP connection + registration alive
+         while the app is backgrounded (Phase 1). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <!-- Runtime-permission (Android 13+) so the "Connected" / incoming-call
+         notifications are visible. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
 
@@ -42,6 +48,11 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <!-- Background SIP keeper (Phase 1). Driven by Dart over the
+             xtendphone/foreground_service MethodChannel. -->
+        <service
+            android:name=".SipForegroundService"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
