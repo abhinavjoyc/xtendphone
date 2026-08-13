@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,10 +28,37 @@ class HomePage extends ConsumerStatefulWidget {
   ConsumerState<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends ConsumerState<HomePage> {
+class _HomePageState extends ConsumerState<HomePage> with WidgetsBindingObserver {
   static const double _wideBreakpoint = 900;
   bool _restoreScheduled = false;
   bool _streamRoutePushed = false;
+  StreamSubscription<(String, String)>? _incomingActionSub;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Answer / Decline tapped on the Android incoming-call notification while
+    // the app was backgrounded (or just launched from one).
+    _incomingActionSub = ForegroundService.incomingCallActions.listen(
+      _onIncomingCallAction,
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _incomingActionSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) return;
+    // The incoming-call notification's full-screen intent re-surfaced the app:
+    // land in the ringing (or just-answered) call UI.
+    _openCurrentCall();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +78,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
     // Push the call page when a new call needs UI.
     ref.listen<AsyncValue<SipCall>>(callEventsProvider, (_, next) {
-      next.whenData(_maybeNavigateToCall);
+      next.whenData(_onCallEvent);
     });
 
     // Drive the Android foreground service from the registration lifecycle:
@@ -276,6 +305,75 @@ class _HomePageState extends ConsumerState<HomePage> {
     if (t.isEmpty) return;
     if (!ref.read(isRegisteredProvider)) return;
     ref.read(sipUserAgentProvider).makeCall(t);
+  }
+
+  /// A call lifecycle event from the UA. Raises / dismisses the native
+  /// incoming-call notification based on the app's visibility, then mirrors
+  /// the state into navigation.
+  void _onCallEvent(SipCall call) {
+    if (call.state == CallState.incomingRinging) {
+      if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+        // Backgrounded / locked: hand the ring to the Android notification
+        // (full-screen intent + Answer/Decline) instead of an invisible route.
+        ForegroundService.showIncomingCall(
+          callId: call.id,
+          caller: _callerLabel(call.remoteParty),
+        );
+        return;
+      }
+    } else {
+      // Answered, declined, or the caller hung up: drop the notification.
+      ForegroundService.hideIncomingCall();
+    }
+    _maybeNavigateToCall(call);
+  }
+
+  /// Extension-only caller label (no `sip:` scheme / domain) for the
+  /// notification, mirroring [call_party_card]'s display logic.
+  String _callerLabel(String party) {
+    var s = party;
+    if (s.startsWith('sip:')) s = s.substring(4);
+    final at = s.indexOf('@');
+    return at > 0 ? s.substring(0, at) : s;
+  }
+
+  /// Action tapped on the native incoming-call notification: answer the INVITE
+  /// (starting media) or reject it with 603 Decline.
+  Future<void> _onIncomingCallAction((String, String) event) async {
+    final (action, callId) = event;
+    final ua = ref.read(sipUserAgentProvider);
+    switch (action) {
+      case 'answer':
+        try {
+          await ua.answer(callId);
+        } catch (_) {
+          // Best-effort: media bind etc. failing shouldn't crash the app.
+        }
+        if (mounted) _openCurrentCall();
+        break;
+      case 'decline':
+        ua.hangup(callId);
+        break;
+    }
+  }
+
+  /// Navigate to the ringing / active call, if any. Used when the app is
+  /// re-surfaced by the incoming-call notification or the Answer action.
+  /// Runs after the next frame so a cold start from the notification has a
+  /// Navigator to push onto.
+  void _openCurrentCall() {
+    if (!mounted) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      for (final call in ref.read(callsProvider).recents) {
+        if (call.state == CallState.incomingRinging ||
+            call.state == CallState.outgoingRinging ||
+            call.state == CallState.active) {
+          _maybeNavigateToCall(call);
+          return;
+        }
+      }
+    });
   }
 
   void _maybeNavigateToCall(SipCall call) {

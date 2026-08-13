@@ -1,6 +1,7 @@
 package com.example.flutter_sip_ua
 
 import android.content.Context
+import android.content.Intent
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
@@ -40,6 +41,16 @@ object SipForegroundServiceChannel {
                     SipForegroundService.stop(context)
                     result.success(null)
                 }
+                "showIncomingCall" -> {
+                    val callId = call.argument<String>("callId") ?: ""
+                    val caller = call.argument<String>("caller") ?: ""
+                    SipForegroundService.showIncomingCall(context, callId, caller)
+                    result.success(null)
+                }
+                "hideIncomingCall" -> {
+                    SipForegroundService.hideIncomingCall(context)
+                    result.success(null)
+                }
                 "appReady" -> {
                     // Dart has installed its handler; deliver anything queued.
                     flushPendingActions()
@@ -48,6 +59,16 @@ object SipForegroundServiceChannel {
                 else -> result.notImplemented()
             }
         }
+    }
+
+    /**
+     * Forward a [MainActivity] intent that carries the notification's Answer
+     * action. Called from `onNewIntent` and a cold-start `onCreate`.
+     */
+    fun handleCallActionIntent(intent: Intent?) {
+        if (intent?.action != SipForegroundService.ACTION_ANSWER) return
+        val callId = intent.getStringExtra(SipForegroundService.EXTRA_CALL_ID) ?: return
+        queueAction("answer", callId)
     }
 
     /** Queue a native -> Dart action; flushed immediately or on `appReady`. */

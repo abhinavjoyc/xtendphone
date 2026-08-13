@@ -29,6 +29,21 @@ class ForegroundService {
   /// Stop the foreground service. Safe to call when not running.
   static Future<void> stop() => impl.stop();
 
+  /// Show the high-priority incoming-call notification (full-screen intent,
+  /// Answer / Decline actions). No-op unless Android.
+  static Future<void> showIncomingCall({
+    required String callId,
+    required String caller,
+  }) => impl.showIncomingCall(callId: callId, caller: caller);
+
+  /// Dismiss the incoming-call notification (answered / declined / cancelled).
+  static Future<void> hideIncomingCall() => impl.hideIncomingCall();
+
+  /// Actions tapped on the incoming-call notification: a stream of
+  /// (`action`, `callId`) pairs where action is `answer` or `decline`.
+  static Stream<(String, String)> get incomingCallActions =>
+      impl.incomingCallActions;
+
   /// Called once at app startup (from `main`) so the native side can deliver
   /// queued notification-action callbacks (incoming-call Accept/Decline).
   static void init() => impl.init();

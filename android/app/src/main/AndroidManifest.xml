@@ -13,6 +13,9 @@
     <!-- Runtime-permission (Android 13+) so the "Connected" / incoming-call
          notifications are visible. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- Full-screen incoming-call notification (Phase 1 item 2): Android 14+
+         requires an explicit opt-in for USE_FULL_SCREEN_INTENT. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
 
@@ -27,6 +30,8 @@
             android:launchMode="singleTop"
             android:taskAffinity=""
             android:theme="@style/LaunchTheme"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
             android:hardwareAccelerated="true"
             android:windowSoftInputMode="adjustResize">

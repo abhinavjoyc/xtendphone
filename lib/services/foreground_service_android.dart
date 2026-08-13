@@ -39,6 +39,31 @@ Future<void> stop() async {
   }
 }
 
+Future<void> showIncomingCall({
+  required String callId,
+  required String caller,
+}) async {
+  if (!supported) return;
+  try {
+    await _channel.invokeMethod<void>('showIncomingCall', {
+      'callId': callId,
+      'caller': caller,
+    });
+  } catch (_) {
+    // Best-effort: a missing POST_NOTIFICATIONS grant silently no-ops on the
+    // native side.
+  }
+}
+
+Future<void> hideIncomingCall() async {
+  if (!supported) return;
+  try {
+    await _channel.invokeMethod<void>('hideIncomingCall');
+  } catch (_) {
+    // Nothing to hide.
+  }
+}
+
 void init() {
   _channel.setMethodCallHandler((call) async {
     switch (call.method) {

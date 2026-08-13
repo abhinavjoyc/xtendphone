@@ -8,6 +8,13 @@ Future<bool> start({required String extension, required String server}) async =>
 
 Future<void> stop() async {}
 
+Future<void> showIncomingCall({
+  required String callId,
+  required String caller,
+}) async {}
+
+Future<void> hideIncomingCall() async {}
+
 void init() {}
 
 Stream<(String, String)> get incomingCallActions =>
