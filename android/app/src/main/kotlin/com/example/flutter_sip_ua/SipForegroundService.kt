@@ -1,5 +1,7 @@
 package com.example.flutter_sip_ua
 
+
+import android.content.pm.ServiceInfo
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -228,12 +230,13 @@ class SipForegroundService : Service() {
     }
 
     @Suppress("DEPRECATION")
-    private fun startForegroundCompat(extension: String, server: String) {
-        startForeground(
-            NOTIF_ID_CONNECTED,
-            buildConnectedNotification(extension, server),
-        )
-    }
+private fun startForegroundCompat(extension: String, server: String) {
+    startForeground(
+        NOTIF_ID_CONNECTED,
+        buildConnectedNotification(extension, server),
+        ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+    )
+}
 
     @Suppress("DEPRECATION")
     private fun stopForegroundCompat() {
