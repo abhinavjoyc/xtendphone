@@ -19,7 +19,7 @@
     <application
         android:label="flutter_sip_ua"
         android:usesCleartextTraffic="true"
-        android:name="${applicationName}"
+        android:name=".SipApplication"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"
@@ -49,10 +49,13 @@
             android:name="flutterEmbedding"
             android:value="2" />
         <!-- Background SIP keeper (Phase 1). Driven by Dart over the
-             xtendphone/foreground_service MethodChannel. -->
+             xtendphone/foreground_service MethodChannel. stopWithTask=false
+             (the default) plus the Application-owned engine keep the service
+             + Dart isolate alive when the task is swiped away. -->
         <service
             android:name=".SipForegroundService"
-            android:exported="false" />
+            android:exported="false"
+            android:stopWithTask="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

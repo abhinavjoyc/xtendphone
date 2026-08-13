@@ -98,13 +98,6 @@ class SipForegroundService : Service() {
         return START_STICKY
     }
 
-    override fun onTaskRemoved(rootIntent: Intent?) {
-        // Without engine survival the Dart isolate dies when the task is
-        // swiped away, so the registration can't stay alive — stop truthfully
-        // instead of leaving a stale "Connected" notification behind.
-        stopSelf()
-    }
-
     override fun onDestroy() {
         isRunning = false
         stopForegroundCompat()
